@@ -165,7 +165,7 @@ pub mod error;
 mod generic_client;
 #[cfg(not(target_arch = "wasm32"))]
 mod keepalive;
-mod maybe_tls_stream;
+pub mod maybe_tls_stream;
 mod portal;
 mod prepare;
 mod query;
