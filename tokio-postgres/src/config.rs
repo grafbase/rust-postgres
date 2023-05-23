@@ -209,6 +209,8 @@ pub struct Config {
     pub(crate) target_session_attrs: TargetSessionAttrs,
     pub(crate) channel_binding: ChannelBinding,
     pub(crate) load_balance_hosts: LoadBalanceHosts,
+    pub(crate) replication_mode: Option<ReplicationMode>,
+    pub(crate) max_backend_message_size: Option<usize>,
 }
 
 impl Default for Config {
@@ -242,6 +244,8 @@ impl Config {
             target_session_attrs: TargetSessionAttrs::Any,
             channel_binding: ChannelBinding::Prefer,
             load_balance_hosts: LoadBalanceHosts::Disable,
+            replication_mode: None,
+            max_backend_message_size: None,
         }
     }
 
@@ -522,6 +526,17 @@ impl Config {
         self.load_balance_hosts
     }
 
+    /// Set limit for backend messages size.
+    pub fn max_backend_message_size(&mut self, max_backend_message_size: usize) -> &mut Config {
+        self.max_backend_message_size = Some(max_backend_message_size);
+        self
+    }
+
+    /// Get limit for backend messages size.
+    pub fn get_max_backend_message_size(&self) -> Option<usize> {
+        self.max_backend_message_size
+    }
+
     fn param(&mut self, key: &str, value: &str) -> Result<(), Error> {
         match key {
             "user" => {
@@ -657,6 +672,14 @@ impl Config {
                     }
                 };
                 self.load_balance_hosts(load_balance_hosts);
+            }
+            "max_backend_message_size" => {
+                let limit = value.parse::<usize>().map_err(|_| {
+                    Error::config_parse(Box::new(InvalidValue("max_backend_message_size")))
+                })?;
+                if limit > 0 {
+                    self.max_backend_message_size(limit);
+                }
             }
             key => {
                 return Err(Error::config_parse(Box::new(UnknownOption(
