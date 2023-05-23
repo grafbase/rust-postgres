@@ -52,7 +52,7 @@ where
     Ok(RowStream {
         statement,
         responses,
-        rows_affected: None,
+        command_tag: None,
         _p: PhantomPinned,
     })
 }
@@ -73,7 +73,7 @@ pub async fn query_portal(
     Ok(RowStream {
         statement: portal.statement().clone(),
         responses,
-        rows_affected: None,
+        command_tag: None,
         _p: PhantomPinned,
     })
 }
@@ -207,9 +207,21 @@ pin_project! {
     pub struct RowStream {
         statement: Statement,
         responses: Responses,
-        rows_affected: Option<u64>,
+        command_tag: Option<String>,
         #[pin]
         _p: PhantomPinned,
+    }
+}
+
+impl RowStream {
+    /// Creates a new `RowStream`.
+    pub fn new(statement: Statement, responses: Responses) -> Self {
+        RowStream {
+            statement,
+            responses,
+            command_tag: None,
+            _p: PhantomPinned,
+        }
     }
 }
 
@@ -223,10 +235,12 @@ impl Stream for RowStream {
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(this.statement.clone(), body)?)))
                 }
-                Message::CommandComplete(body) => {
-                    *this.rows_affected = Some(extract_row_affected(&body)?);
-                }
                 Message::EmptyQueryResponse | Message::PortalSuspended => {}
+                Message::CommandComplete(body) => {
+                    if let Ok(tag) = body.tag() {
+                        *this.command_tag = Some(tag.to_string());
+                    }
+                }
                 Message::ReadyForQuery(_) => return Poll::Ready(None),
                 _ => return Poll::Ready(Some(Err(Error::unexpected_message()))),
             }
@@ -235,10 +249,10 @@ impl Stream for RowStream {
 }
 
 impl RowStream {
-    /// Returns the number of rows affected by the query.
+    /// Returns the command tag of this query.
     ///
-    /// This function will return `None` until the stream has been exhausted.
-    pub fn rows_affected(&self) -> Option<u64> {
-        self.rows_affected
+    /// This is only available after the stream has been exhausted.
+    pub fn command_tag(&self) -> Option<String> {
+        self.command_tag.clone()
     }
 }
