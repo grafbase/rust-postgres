@@ -2,7 +2,10 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::Type;
-use postgres_protocol::message::frontend;
+use postgres_protocol::{
+    message::{backend::Field, frontend},
+    Oid,
+};
 use postgres_types::Format;
 use std::{
     fmt,
