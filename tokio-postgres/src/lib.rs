@@ -118,6 +118,8 @@
 //! | `with-time-0_3` | Enable support for the 0.3 version of the `time` crate. | [time](https://crates.io/crates/time/0.3.0) 0.3 | no |
 #![warn(rust_2018_idioms, clippy::all, missing_docs)]
 
+use postgres_protocol::message::backend::ReadyForQueryBody;
+
 pub use crate::cancel_token::CancelToken;
 pub use crate::client::Client;
 pub use crate::config::Config;
@@ -141,6 +143,31 @@ pub use crate::to_statement::ToStatement;
 pub use crate::transaction::Transaction;
 pub use crate::transaction_builder::{IsolationLevel, TransactionBuilder};
 use crate::types::ToSql;
+
+/// After executing a query, the connection will be in one of these states
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u8)]
+pub enum ReadyForQueryStatus {
+    /// Connection state is unknown
+    Unknown,
+    /// Connection is idle (no transactions)
+    Idle = b'I',
+    /// Connection is in a transaction block
+    Transaction = b'T',
+    /// Connection is in a failed transaction block
+    FailedTransaction = b'E',
+}
+
+impl From<ReadyForQueryBody> for ReadyForQueryStatus {
+    fn from(value: ReadyForQueryBody) -> Self {
+        match value.status() {
+            b'I' => Self::Idle,
+            b'T' => Self::Transaction,
+            b'E' => Self::FailedTransaction,
+            _ => Self::Unknown,
+        }
+    }
+}
 
 pub mod binary_copy;
 mod bind;
