@@ -175,7 +175,8 @@ impl GenericClient for Client {
     }
 
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
-        self.batch_execute(query).await
+        self.batch_execute(query).await?;
+        Ok(())
     }
 
     fn client(&self) -> &Client {
@@ -272,7 +273,8 @@ impl GenericClient for Transaction<'_> {
     }
 
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
-        self.batch_execute(query).await
+        self.batch_execute(query).await?;
+        Ok(())
     }
 
     fn client(&self) -> &Client {
