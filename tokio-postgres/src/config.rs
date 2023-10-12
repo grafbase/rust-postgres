@@ -558,7 +558,7 @@ impl Config {
     pub fn get_load_balance_hosts(&self) -> LoadBalanceHosts {
         self.load_balance_hosts
     }
-    
+
     /// Set replication mode.
     pub fn replication_mode(&mut self, replication_mode: ReplicationMode) -> &mut Config {
         self.replication_mode = Some(replication_mode);
@@ -715,6 +715,7 @@ impl Config {
                     }
                 };
                 self.load_balance_hosts(load_balance_hosts);
+            }
             "replication" => {
                 let mode = match value {
                     "off" => None,

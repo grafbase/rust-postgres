@@ -113,6 +113,7 @@ where
         status: ReadyForQueryStatus::Unknown,
         output_format: Format::Text,
         _p: PhantomPinned,
+        rows_affected: None,
     })
 }
 
@@ -317,7 +318,7 @@ impl RowStream {
     pub fn rows_affected(&self) -> Option<u64> {
         self.rows_affected
     }
-    
+
     /// Returns the command tag of this query.
     ///
     /// This is only available after the stream has been exhausted.

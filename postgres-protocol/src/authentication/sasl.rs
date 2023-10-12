@@ -1,6 +1,5 @@
 //! SASL-based authentication support.
 
-use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use hmac::{Hmac, Mac};

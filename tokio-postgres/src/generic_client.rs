@@ -1,6 +1,6 @@
 use crate::query::RowStream;
 use crate::types::{BorrowToSql, ToSql, Type};
-use crate::{Client, Error, Row, Statement, ToStatement, Transaction};
+use crate::{Client, Error, ReadyForQueryStatus, Row, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
 
 mod private {
@@ -82,7 +82,7 @@ pub trait GenericClient: private::Sealed {
     async fn transaction(&mut self) -> Result<Transaction<'_>, Error>;
 
     /// Like `Client::batch_execute`.
-    async fn batch_execute(&self, query: &str) -> Result<(), Error>;
+    async fn batch_execute(&self, query: &str) -> Result<ReadyForQueryStatus, Error>;
 
     /// Returns a reference to the underlying `Client`.
     fn client(&self) -> &Client;
@@ -174,7 +174,7 @@ impl GenericClient for Client {
         self.transaction().await
     }
 
-    async fn batch_execute(&self, query: &str) -> Result<(), Error> {
+    async fn batch_execute(&self, query: &str) -> Result<ReadyForQueryStatus, Error> {
         self.batch_execute(query).await
     }
 
@@ -271,7 +271,7 @@ impl GenericClient for Transaction<'_> {
         self.transaction().await
     }
 
-    async fn batch_execute(&self, query: &str) -> Result<(), Error> {
+    async fn batch_execute(&self, query: &str) -> Result<ReadyForQueryStatus, Error> {
         self.batch_execute(query).await
     }
 

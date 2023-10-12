@@ -10,6 +10,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime;
+use tokio_postgres::config::LoadBalanceHosts;
 #[doc(inline)]
 pub use tokio_postgres::config::{
     AuthKeys, ChannelBinding, Host, ScramKeys, SslMode, TargetSessionAttrs,
