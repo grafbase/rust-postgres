@@ -2,6 +2,7 @@ use crate::query::RowStream;
 use crate::types::{BorrowToSql, ToSql, Type};
 use crate::{Client, Error, Row, Statement, ToStatement, Transaction};
 use async_trait::async_trait;
+use postgres_protocol::Oid;
 
 mod private {
     pub trait Sealed {}
@@ -78,6 +79,9 @@ pub trait GenericClient: private::Sealed {
 
     /// Like `Client::batch_execute`.
     async fn batch_execute(&self, query: &str) -> Result<(), Error>;
+
+    /// Query for type information
+    async fn get_type(&self, oid: Oid) -> Result<Type, Error>;
 
     /// Returns a reference to the underlying `Client`.
     fn client(&self) -> &Client;
@@ -171,6 +175,11 @@ impl GenericClient for Client {
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         self.batch_execute(query).await?;
         Ok(())
+    }
+
+    /// Query for type information
+    async fn get_type(&self, oid: Oid) -> Result<Type, Error> {
+        self.get_type(oid).await
     }
 
     fn client(&self) -> &Client {
@@ -268,6 +277,11 @@ impl GenericClient for Transaction<'_> {
     async fn batch_execute(&self, query: &str) -> Result<(), Error> {
         self.batch_execute(query).await?;
         Ok(())
+    }
+
+    /// Query for type information
+    async fn get_type(&self, oid: Oid) -> Result<Type, Error> {
+        self.client().get_type(oid).await
     }
 
     fn client(&self) -> &Client {
