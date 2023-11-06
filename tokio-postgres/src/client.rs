@@ -104,7 +104,7 @@ impl InnerClient {
     }
 
     pub fn typeinfo(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo.clone()
+        None
     }
 
     pub fn set_typeinfo(&self, statement: &Statement) {
@@ -112,7 +112,7 @@ impl InnerClient {
     }
 
     pub fn typeinfo_composite(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_composite.clone()
+        None
     }
 
     pub fn set_typeinfo_composite(&self, statement: &Statement) {
@@ -120,15 +120,15 @@ impl InnerClient {
     }
 
     pub fn typeinfo_enum(&self) -> Option<Statement> {
-        self.cached_typeinfo.lock().typeinfo_enum.clone()
+        None
     }
 
     pub fn set_typeinfo_enum(&self, statement: &Statement) {
         self.cached_typeinfo.lock().typeinfo_enum = Some(statement.clone());
     }
 
-    pub fn type_(&self, oid: Oid) -> Option<Type> {
-        self.cached_typeinfo.lock().types.get(&oid).cloned()
+    pub fn type_(&self, _: Oid) -> Option<Type> {
+        None
     }
 
     pub fn set_type(&self, oid: Oid, type_: &Type) {
