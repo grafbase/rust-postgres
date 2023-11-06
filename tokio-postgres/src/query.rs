@@ -42,8 +42,7 @@ where
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
-            "executing statement {} with parameters: {:?}",
-            statement.name(),
+            "executing statement with parameters: {:?}",
             BorrowToSqlParamsDebug(params.as_slice()),
         );
         encode(client, &statement, params)?
@@ -78,7 +77,7 @@ where
         // Bind, pass params as text, retrieve as binary
         match frontend::bind(
             "",                 // empty string selects the unnamed portal
-            statement.name(),   // named prepared statement
+            "",                 // named prepared statement
             std::iter::empty(), // all parameters use the default format (text)
             params,
             |param, buf| match param {
@@ -167,8 +166,7 @@ where
     let buf = if log_enabled!(Level::Debug) {
         let params = params.into_iter().collect::<Vec<_>>();
         debug!(
-            "executing statement {} with parameters: {:?}",
-            statement.name(),
+            "executing statement with parameters: {:?}",
             BorrowToSqlParamsDebug(params.as_slice()),
         );
         encode(client, &statement, params)?
@@ -213,9 +211,7 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     client.with_buf(|buf| {
-        if let Some(query) = statement.query() {
-            frontend::parse("", query, [], buf).unwrap();
-        }
+        frontend::parse("", statement.query(), [], buf).unwrap();
         encode_bind(statement, params, "", buf)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
@@ -251,7 +247,7 @@ where
     let mut error_idx = 0;
     let r = frontend::bind(
         portal,
-        statement.name(),
+        "", // statement name
         param_formats,
         params.zip(param_types).enumerate(),
         |(idx, (param, ty)), buf| match param.borrow_to_sql().to_sql_checked(ty, buf) {

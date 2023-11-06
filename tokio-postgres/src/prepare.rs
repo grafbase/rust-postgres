@@ -13,7 +13,6 @@ use postgres_protocol::message::backend::Message;
 use postgres_protocol::message::frontend;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 const TYPEINFO_QUERY: &str = "\
@@ -56,20 +55,13 @@ AND attnum > 0
 ORDER BY attnum
 ";
 
-static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-
 pub async fn prepare(
     client: &Arc<InnerClient>,
     query: &str,
     types: &[Type],
-    unnamed: bool,
 ) -> Result<Statement, Error> {
-    let name = if unnamed {
-        String::new()
-    } else {
-        format!("s{}", NEXT_ID.fetch_add(1, Ordering::SeqCst))
-    };
-    let buf = encode(client, &name, query, types)?;
+    let name = "";
+    let buf = encode(client, name, query, types)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     match responses.next().await? {
@@ -105,11 +97,7 @@ pub async fn prepare(
         }
     }
 
-    if unnamed {
-        Ok(Statement::unnamed(query.to_owned(), parameters, columns))
-    } else {
-        Ok(Statement::named(client, name, parameters, columns))
-    }
+    Ok(Statement::new(query.to_owned(), parameters, columns))
 }
 
 fn prepare_rec<'a>(
@@ -117,7 +105,7 @@ fn prepare_rec<'a>(
     query: &'a str,
     types: &'a [Type],
 ) -> Pin<Box<dyn Future<Output = Result<Statement, Error>> + 'a + Send>> {
-    Box::pin(prepare(client, query, types, false))
+    Box::pin(prepare(client, query, types))
 }
 
 fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {

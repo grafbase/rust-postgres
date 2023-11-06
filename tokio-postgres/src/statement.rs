@@ -1,43 +1,11 @@
-use crate::client::InnerClient;
-use crate::codec::FrontendMessage;
-use crate::connection::RequestMessages;
 use crate::types::Type;
-use postgres_protocol::{
-    message::{backend::Field, frontend},
-    Oid,
-};
-use std::{
-    fmt,
-    sync::{Arc, Weak},
-};
+use postgres_protocol::{message::backend::Field, Oid};
+use std::{fmt, sync::Arc};
 
-enum StatementInner {
-    Unnamed {
-        query: String,
-        params: Vec<Type>,
-        columns: Vec<Column>,
-    },
-    Named {
-        client: Weak<InnerClient>,
-        name: String,
-        params: Vec<Type>,
-        columns: Vec<Column>,
-    },
-}
-
-impl Drop for StatementInner {
-    fn drop(&mut self) {
-        if let StatementInner::Named { client, name, .. } = self {
-            if let Some(client) = client.upgrade() {
-                let buf = client.with_buf(|buf| {
-                    frontend::close(b'S', name, buf).unwrap();
-                    frontend::sync(buf);
-                    buf.split().freeze()
-                });
-                let _ = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)));
-            }
-        }
-    }
+struct StatementInner {
+    query: String,
+    params: Vec<Type>,
+    columns: Vec<Column>,
 }
 
 /// A prepared statement.
@@ -47,56 +15,26 @@ impl Drop for StatementInner {
 pub struct Statement(Arc<StatementInner>);
 
 impl Statement {
-    pub(crate) fn named(
-        inner: &Arc<InnerClient>,
-        name: String,
-        params: Vec<Type>,
-        columns: Vec<Column>,
-    ) -> Statement {
-        Statement(Arc::new(StatementInner::Named {
-            client: Arc::downgrade(inner),
-            name,
-            params,
-            columns,
-        }))
-    }
-
-    pub(crate) fn unnamed(query: String, params: Vec<Type>, columns: Vec<Column>) -> Self {
-        Statement(Arc::new(StatementInner::Unnamed {
+    pub(crate) fn new(query: String, params: Vec<Type>, columns: Vec<Column>) -> Self {
+        Statement(Arc::new(StatementInner {
             query,
             params,
             columns,
         }))
     }
 
-    pub(crate) fn name(&self) -> &str {
-        match &*self.0 {
-            StatementInner::Unnamed { .. } => "",
-            StatementInner::Named { name, .. } => name,
-        }
-    }
-
-    pub(crate) fn query(&self) -> Option<&str> {
-        match &*self.0 {
-            StatementInner::Unnamed { query, .. } => Some(query),
-            StatementInner::Named { .. } => None,
-        }
+    pub(crate) fn query(&self) -> &str {
+        &*self.0.query
     }
 
     /// Returns the expected types of the statement's parameters.
     pub fn params(&self) -> &[Type] {
-        match &*self.0 {
-            StatementInner::Unnamed { params, .. } => params,
-            StatementInner::Named { params, .. } => params,
-        }
+        &*self.0.params
     }
 
     /// Returns information about the columns returned when the statement is queried.
     pub fn columns(&self) -> &[Column] {
-        match &*self.0 {
-            StatementInner::Unnamed { columns, .. } => columns,
-            StatementInner::Named { columns, .. } => columns,
-        }
+        &*self.0.columns
     }
 }
 
