@@ -192,7 +192,7 @@ pub async fn copy_in<T>(client: &InnerClient, statement: Statement) -> Result<Co
 where
     T: Buf + 'static + Send,
 {
-    debug!("executing copy in statement {}", statement.name());
+    debug!("executing copy in statement");
 
     let buf = query::encode(client, &statement, slice_iter(&[]))?;
 
@@ -206,12 +206,10 @@ where
         .map_err(|_| Error::closed())?;
 
     match responses.next().await? {
-        Message::ParseComplete => {
-            match responses.next().await? {
-                Message::BindComplete => {}
-                m => return Err(Error::unexpected_message(m)),
-            }
-        }
+        Message::ParseComplete => match responses.next().await? {
+            Message::BindComplete => {}
+            m => return Err(Error::unexpected_message(m)),
+        },
         Message::BindComplete => {}
         m => return Err(Error::unexpected_message(m)),
     }
