@@ -47,7 +47,7 @@ pub async fn prepare(
     let mut parameters = vec![];
     let mut it = parameter_description.parameters();
     while let Some(oid) = it.next().map_err(Error::parse)? {
-        let type_ = get_type(client, oid).await?;
+        let type_ = get_type(oid);
         parameters.push(type_);
     }
 
@@ -67,13 +67,18 @@ pub async fn prepare(
     }
 
     if unnamed {
-        Ok(Statement::unnamed(query.to_owned(), parameters, columns))
+        Ok(Statement::unnamed(parameters, columns))
     } else {
         Ok(Statement::named(client, name, parameters, columns))
     }
 }
 
-fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Result<Bytes, Error> {
+pub(crate) fn encode(
+    client: &InnerClient,
+    name: &str,
+    query: &str,
+    types: &[Type],
+) -> Result<Bytes, Error> {
     if types.is_empty() {
         debug!("preparing query {}: {}", name, query);
     } else {
@@ -88,14 +93,10 @@ fn encode(client: &InnerClient, name: &str, query: &str, types: &[Type]) -> Resu
     })
 }
 
-pub async fn get_type(client: &Arc<InnerClient>, oid: Oid) -> Result<Type, Error> {
+pub fn get_type(oid: Oid) -> Type {
     if let Some(type_) = Type::from_oid(oid) {
-        return Ok(type_);
+        return type_;
     }
 
-    if let Some(type_) = client.type_(oid) {
-        return Ok(type_);
-    }
-
-    Ok(Type::TEXT)
+    Type::TEXT
 }

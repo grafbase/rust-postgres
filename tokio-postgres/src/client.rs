@@ -9,7 +9,7 @@ use crate::simple_query::SimpleQueryStream;
 #[cfg(feature = "runtime")]
 use crate::tls::MakeTlsConnect;
 use crate::tls::TlsConnect;
-use crate::types::{Oid, ToSql, Type};
+use crate::types::{ToSql, Type};
 #[cfg(feature = "runtime")]
 use crate::Socket;
 use crate::{
@@ -23,7 +23,6 @@ use futures_util::{future, pin_mut, ready, StreamExt, TryStreamExt};
 use parking_lot::Mutex;
 use postgres_protocol::message::{backend::Message, frontend};
 use postgres_types::BorrowToSql;
-use std::collections::HashMap;
 use std::fmt;
 #[cfg(feature = "runtime")]
 use std::net::IpAddr;
@@ -63,8 +62,6 @@ impl Responses {
 
 pub struct InnerClient {
     sender: mpsc::UnboundedSender<Request>,
-    cached_typeinfo: Mutex<HashMap<Oid, Type>>,
-
     /// A buffer to use when writing out postgres commands.
     buffer: Mutex<BytesMut>,
 }
@@ -81,14 +78,6 @@ impl InnerClient {
             receiver,
             cur: BackendMessages::empty(),
         })
-    }
-
-    pub fn type_(&self, oid: Oid) -> Option<Type> {
-        self.cached_typeinfo.lock().get(&oid).cloned()
-    }
-
-    pub fn clear_type_cache(&self) {
-        self.cached_typeinfo.lock().clear();
     }
 
     /// Call the given function with a buffer to be used when writing out
@@ -146,7 +135,6 @@ impl Client {
         Client {
             inner: Arc::new(InnerClient {
                 sender,
-                cached_typeinfo: Default::default(),
                 buffer: Default::default(),
             }),
             #[cfg(feature = "runtime")]
@@ -322,19 +310,13 @@ impl Client {
 
     /// Pass text directly to the Postgres backend to allow it to sort out typing itself and
     /// to save a roundtrip
-    pub async fn query_raw_txt<'a, T, S, I>(
-        &self,
-        statement: &T,
-        params: I,
-    ) -> Result<RowStream, Error>
+    pub async fn query_raw_txt<'a, S, I>(&self, query: &str, params: I) -> Result<RowStream, Error>
     where
-        T: ?Sized + ToStatement,
         S: AsRef<str>,
         I: IntoIterator<Item = Option<S>>,
         I::IntoIter: ExactSizeIterator,
     {
-        let statement = statement.__convert().into_statement(self).await?;
-        query::query_txt(&self.inner, statement, params).await
+        query::query_txt(&self.inner, query, params).await
     }
 
     /// Executes a statement, returning the number of rows modified.
@@ -525,15 +507,6 @@ impl Client {
         T: TlsConnect<S>,
     {
         self.cancel_token().cancel_query_raw(stream, tls).await
-    }
-
-    /// Clears the client's type information cache.
-    ///
-    /// When user-defined types are used in a query, the client loads their definitions from the database and caches
-    /// them for the lifetime of the client. If those definitions are changed in the database, this method can be used
-    /// to flush the local cache and allow the new, updated definitions to be loaded.
-    pub fn clear_type_cache(&self) {
-        self.inner().clear_type_cache();
     }
 
     /// Determines if the connection to the server has already closed.
