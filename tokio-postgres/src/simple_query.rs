@@ -56,6 +56,7 @@ pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Erro
             Message::ReadyForQuery(_) => return Ok(()),
             Message::CommandComplete(_)
             | Message::EmptyQueryResponse
+            | Message::CloseComplete
             | Message::RowDescription(_)
             | Message::DataRow(_) => {}
             m => return Err(Error::unexpected_message(m)),
