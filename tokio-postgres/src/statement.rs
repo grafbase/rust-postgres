@@ -14,7 +14,6 @@ use std::{
 #[derive(Debug)]
 enum StatementInner {
     Unnamed {
-        query: String,
         params: Vec<Type>,
         columns: Vec<Column>,
     },
@@ -62,25 +61,14 @@ impl Statement {
         }))
     }
 
-    pub(crate) fn unnamed(query: String, params: Vec<Type>, columns: Vec<Column>) -> Self {
-        Statement(Arc::new(StatementInner::Unnamed {
-            query,
-            params,
-            columns,
-        }))
+    pub(crate) fn unnamed(params: Vec<Type>, columns: Vec<Column>) -> Self {
+        Statement(Arc::new(StatementInner::Unnamed { params, columns }))
     }
 
     pub(crate) fn name(&self) -> &str {
         match &*self.0 {
             StatementInner::Unnamed { .. } => "",
             StatementInner::Named { name, .. } => name,
-        }
-    }
-
-    pub(crate) fn query(&self) -> Option<&str> {
-        match &*self.0 {
-            StatementInner::Unnamed { query, .. } => Some(query),
-            StatementInner::Named { .. } => None,
         }
     }
 
