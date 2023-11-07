@@ -2,15 +2,17 @@ use crate::client::{InnerClient, Responses};
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::{BorrowToSql, IsNull};
-use crate::{Error, Portal, Row, Statement, Column};
+use crate::{Column, Error, Portal, Row, Statement};
 use bytes::{BufMut, Bytes, BytesMut};
 use fallible_iterator::FallibleIterator;
 use futures_util::{ready, Stream};
 use log::{debug, log_enabled, Level};
 use pin_project_lite::pin_project;
-use postgres_protocol::message::backend::{CommandCompleteBody, Message, ParameterDescriptionBody, RowDescriptionBody};
+use postgres_protocol::message::backend::{
+    CommandCompleteBody, Message, ParameterDescriptionBody, RowDescriptionBody,
+};
 use postgres_protocol::message::frontend;
-use postgres_types::{Format, Type};
+use postgres_types::Format;
 use std::fmt;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
@@ -74,7 +76,6 @@ where
     I: IntoIterator<Item = Option<S>>,
     I::IntoIter: ExactSizeIterator,
 {
-    dbg!("here");
     let params = params.into_iter();
 
     let buf = client.with_buf(|buf| {
@@ -86,7 +87,7 @@ where
         // Bind, pass params as text, retrieve as binary
         match frontend::bind(
             "",                 // empty string selects the unnamed portal
-            "",   // unnamed prepared statement
+            "",                 // unnamed prepared statement
             std::iter::empty(), // all parameters use the default format (text)
             params,
             |param, buf| match param {
@@ -112,10 +113,8 @@ where
         Ok(buf.split().freeze())
     })?;
 
-    dbg!("here");
     // now read the responses
     let (statement, responses) = start(client, buf).await?;
-    dbg!("here");
 
     Ok(RowStream {
         parameter_description: None,
@@ -208,45 +207,53 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<(Option<Statement>, R
     let mut parameter_description: Option<ParameterDescriptionBody> = None;
     let mut statement = None;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
-        let make_statement = |parameter_description: ParameterDescriptionBody, row_description: Option<RowDescriptionBody>| {
-            let mut parameters = vec![];
-            let mut it = parameter_description.parameters();
-            while let Some(oid) = it.next().map_err(Error::parse).unwrap() {
-                let type_ = crate::prepare::get_type(client, oid);
-                parameters.push(type_);
+
+    loop {
+        match responses.next().await? {
+            Message::ParseComplete => {}
+            Message::BindComplete => return Ok((statement, responses)),
+            Message::ParameterDescription(body) => {
+                parameter_description = Some(body); // tooo-o-ooo-o loooove
             }
-
-            let mut columns = vec![];
-            if let Some(row_description) = row_description {
-                let mut it = row_description.fields();
-                while let Some(field) = it.next().map_err(Error::parse).unwrap() {
-                    let type_ = crate::prepare::get_type(client, field.type_oid());
-                    let column = Column::new(field.name().to_string(), type_, field);
-                    columns.push(column);
-                }
+            Message::NoData => {
+                statement = Some(make_statement(parameter_description.take().unwrap(), None)?);
             }
-
-                Statement::unnamed("Dose this matter?".to_owned(), parameters, columns)
-
-        };
-
-        loop {
-            match responses.next().await? {
-                Message::ParseComplete => {},
-                Message::BindComplete => {return Ok((statement, responses))}
-                Message::ParameterDescription(body) => {
-                    parameter_description = Some(body); // to love me
-                }
-                Message::NoData => {
-                    statement = Some(make_statement(parameter_description.take().unwrap(), None));
-                }
-                Message::RowDescription(body) => {
-                    statement = Some(make_statement(parameter_description.take().unwrap(), Some(body)));
-                }
-                m => return Err(Error::unexpected_message(m)),
+            Message::RowDescription(body) => {
+                statement = Some(make_statement(
+                    parameter_description.take().unwrap(),
+                    Some(body),
+                )?);
             }
+            m => return Err(Error::unexpected_message(m)),
         }
+    }
+}
 
+fn make_statement(
+    parameter_description: ParameterDescriptionBody,
+    row_description: Option<RowDescriptionBody>,
+) -> Result<Statement, Error> {
+    let mut parameters = vec![];
+    let mut it = parameter_description.parameters();
+
+    while let Some(oid) = it.next().map_err(Error::parse).unwrap() {
+        let type_ = crate::prepare::get_type(oid);
+        parameters.push(type_);
+    }
+
+    let mut columns = Vec::new();
+
+    if let Some(row_description) = row_description {
+        let mut it = row_description.fields();
+
+        while let Some(field) = it.next().map_err(Error::parse)? {
+            let type_ = crate::prepare::get_type(field.type_oid());
+            let column = Column::new(field.name().to_string(), type_, field);
+            columns.push(column);
+        }
+    }
+
+    Ok(Statement::unnamed(parameters, columns))
 }
 
 pub fn encode<P, I>(client: &InnerClient, statement: &Statement, params: I) -> Result<Bytes, Error>
@@ -256,12 +263,10 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     client.with_buf(|buf| {
-        if let Some(query) = statement.query() {
-            frontend::parse("", query, [], buf).unwrap();
-        }
         encode_bind(statement, params, "", buf)?;
         frontend::execute("", 0, buf).map_err(Error::encode)?;
         frontend::sync(buf);
+
         Ok(buf.split().freeze())
     })
 }
@@ -335,41 +340,10 @@ impl Stream for RowStream {
     type Item = Result<Row, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // dbg!("here");
         let this = self.project();
-        // let make_statement = |parameter_description: ParameterDescriptionBody, row_description: Option<RowDescriptionBody>| {
-        //     let mut parameters = vec![];
-        //     let mut it = parameter_description.parameters();
-        //     while let Some(oid) = it.next().map_err(Error::parse).unwrap() {
-        //         let type_ = Type::TEXT;
-        //         parameters.push(type_);
-        //     }
 
-        //     let mut columns = vec![];
-        //     if let Some(row_description) = row_description {
-        //         let mut it = row_description.fields();
-        //         while let Some(field) = it.next().map_err(Error::parse).unwrap() {
-        //             let type_ = crate::prepare::get_type(client, field.type_oid());
-        //             let column = Column::new(field.name().to_string(), type_, field);
-        //             columns.push(column);
-        //         }
-        //     }
-
-        //         Statement::unnamed("Dose this matter?".to_owned(), parameters, columns)
-
-        // };
         loop {
             match ready!(this.responses.poll_next(cx)?) {
-                // Message::ParseComplete => {} // nice
-                // Message::ParameterDescription(body) => {
-                //     *this.parameter_description = Some(body); // to love me
-                // }
-                // Message::NoData => {
-                //     *this.statement = Some(make_statement(this.parameter_description.take().unwrap(), None));
-                // }
-                // Message::RowDescription(body) => {
-                //     *this.statement = Some(make_statement(this.parameter_description.take().unwrap(), Some(body)));
-                // }
                 Message::DataRow(body) => {
                     return Poll::Ready(Some(Ok(Row::new(
                         this.statement.as_ref().unwrap().clone(),
@@ -417,4 +391,3 @@ impl RowStream {
         self.status
     }
 }
-
