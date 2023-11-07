@@ -82,7 +82,6 @@ where
         // prepare
         frontend::parse("", query, std::iter::empty(), buf).map_err(Error::encode)?;
         frontend::describe(b'S', "", buf).map_err(Error::encode)?;
-        frontend::flush(buf);
 
         // Bind, pass params as text, retrieve as binary
         match frontend::bind(
