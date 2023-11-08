@@ -110,7 +110,7 @@ where
         frontend::sync(buf);
 
         // Close
-        frontend::close(b'S', "", buf).map_err(Error::encode)?;
+        // frontend::close(b'S', "", buf).map_err(Error::encode)?;
 
         Ok(buf.split().freeze())
     })?;
@@ -212,7 +212,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<(Option<Statement>, R
 
     loop {
         match responses.next().await? {
-            Message::CloseComplete | Message::ParseComplete => {}
+            Message::CloseComplete | Message::ParseComplete | Message::ReadyForQuery(_) => {}
             Message::BindComplete => return Ok((statement, responses)),
             Message::ParameterDescription(body) => {
                 parameter_description = Some(body); // tooo-o-ooo-o loooove
