@@ -110,7 +110,7 @@ where
         frontend::sync(buf);
 
         // Close
-        frontend::close(b'S', "", buf).map_err(Error::encode)?;
+        // frontend::close(b'S', "", buf).map_err(Error::encode)?;
 
         Ok(buf.split().freeze())
     })?;
