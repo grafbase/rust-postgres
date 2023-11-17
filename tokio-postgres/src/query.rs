@@ -214,7 +214,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     loop {
         match responses.next().await? {
             Message::ParseComplete => {}
-            Message::BindComplete => return Ok(responses),
+            Message::BindComplete | Message::ReadyForQuery(_) => return Ok(responses),
             m => return Err(Error::unexpected_message(m)),
         }
     }
