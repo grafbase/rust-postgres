@@ -79,9 +79,8 @@ where
     let params = params.into_iter();
 
     let buf = client.with_buf(|buf| {
-        // prepare
+        // Prepare
         frontend::parse("", query, std::iter::empty(), buf).map_err(Error::encode)?;
-        frontend::describe(b'S', "", buf).map_err(Error::encode)?;
 
         // Bind, pass params as text, retrieve as binary
         match frontend::bind(
@@ -104,13 +103,14 @@ where
             Err(frontend::BindError::Serialization(e)) => Err(Error::encode(e)),
         }?;
 
+        // Describe
+        frontend::describe(b'S', "", buf).map_err(Error::encode)?;
+
         // Execute
         frontend::execute("", 0, buf).map_err(Error::encode)?;
+
         // Sync
         frontend::sync(buf);
-
-        // Close
-        // frontend::close(b'S', "", buf).map_err(Error::encode)?;
 
         Ok(buf.split().freeze())
     })?;
@@ -212,7 +212,7 @@ async fn start(client: &InnerClient, buf: Bytes) -> Result<(Option<Statement>, R
 
     loop {
         match responses.next().await? {
-            Message::CloseComplete | Message::ParseComplete | Message::ReadyForQuery(_) => {}
+            Message::ParseComplete => {}
             Message::BindComplete => return Ok((statement, responses)),
             Message::ParameterDescription(body) => {
                 parameter_description = Some(body); // tooo-o-ooo-o loooove
