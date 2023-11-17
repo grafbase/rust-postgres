@@ -53,9 +53,11 @@ where
     } else {
         encode(client, &statement, params)?
     };
-    let (statement, responses) = start(client, buf).await?;
+
+    let responses = start(client, buf).await?;
+
     Ok(RowStream {
-        statement,
+        statement: None,
         responses,
         rows_affected: None,
         command_tag: None,
@@ -116,11 +118,11 @@ where
     })?;
 
     // now read the responses
-    let (statement, responses) = start(client, buf).await?;
+    let responses = start(client, buf).await?;
 
     Ok(RowStream {
         parameter_description: None,
-        statement,
+        statement: None,
         responses,
         command_tag: None,
         status: None,
@@ -189,7 +191,8 @@ where
     } else {
         encode(client, &statement, params)?
     };
-    let (_statement, mut responses) = start(client, buf).await?;
+
+    let mut responses = start(client, buf).await?;
 
     let mut rows = 0;
     loop {
@@ -205,27 +208,13 @@ where
     }
 }
 
-async fn start(client: &InnerClient, buf: Bytes) -> Result<(Option<Statement>, Responses), Error> {
-    let mut parameter_description: Option<ParameterDescriptionBody> = None;
-    let mut statement = None;
+async fn start(client: &InnerClient, buf: Bytes) -> Result<Responses, Error> {
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
     loop {
         match responses.next().await? {
             Message::ParseComplete => {}
-            Message::BindComplete => return Ok((statement, responses)),
-            Message::ParameterDescription(body) => {
-                parameter_description = Some(body); // tooo-o-ooo-o loooove
-            }
-            Message::NoData => {
-                statement = Some(make_statement(parameter_description.take().unwrap(), None)?);
-            }
-            Message::RowDescription(body) => {
-                statement = Some(make_statement(
-                    parameter_description.take().unwrap(),
-                    Some(body),
-                )?);
-            }
+            Message::BindComplete => return Ok(responses),
             m => return Err(Error::unexpected_message(m)),
         }
     }
@@ -359,6 +348,21 @@ impl Stream for RowStream {
                     if let Ok(tag) = body.tag() {
                         *this.command_tag = Some(tag.to_string());
                     }
+                }
+                Message::ParameterDescription(body) => {
+                    *this.parameter_description = Some(body);
+                }
+                Message::NoData => {
+                    *this.statement = Some(make_statement(
+                        this.parameter_description.take().unwrap(),
+                        None,
+                    )?);
+                }
+                Message::RowDescription(body) => {
+                    *this.statement = Some(make_statement(
+                        this.parameter_description.take().unwrap(),
+                        Some(body),
+                    )?);
                 }
                 Message::EmptyQueryResponse | Message::PortalSuspended => {}
                 Message::ReadyForQuery(status) => {
