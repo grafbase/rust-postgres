@@ -26,6 +26,7 @@ circle-ci = { repository = "sfackler/rust-postgres" }
 [features]
 default = ["runtime"]
 runtime = ["tokio/net", "tokio/time"]
+worker-logging = ["worker"]
 
 array-impls = ["postgres-types/array-impls"]
 with-bit-vec-0_6 = ["postgres-types/with-bit-vec-0_6"]
@@ -60,6 +61,7 @@ tokio = { version = "1.27", features = ["io-util"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 rand = "0.8.5"
 whoami = "1.4"
+worker = { version = "0.0.18", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 socket2 = { version = "0.5", features = ["all"] }

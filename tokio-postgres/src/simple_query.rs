@@ -48,6 +48,9 @@ pub async fn simple_query(client: &InnerClient, query: &str) -> Result<SimpleQue
 pub async fn batch_execute(client: &InnerClient, query: &str) -> Result<(), Error> {
     debug!("executing statement batch: {}", query);
 
+    #[cfg(feature = "worker-logging")]
+    worker::console_log!("QUERY: {query}");
+
     let buf = encode(client, query)?;
     let mut responses = client.send(RequestMessages::Single(FrontendMessage::Raw(buf)))?;
 
