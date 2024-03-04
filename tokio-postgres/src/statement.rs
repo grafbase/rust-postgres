@@ -2,14 +2,8 @@ use crate::client::InnerClient;
 use crate::codec::FrontendMessage;
 use crate::connection::RequestMessages;
 use crate::types::Type;
-use postgres_protocol::{
-    message::{backend::Field, frontend},
-    Oid,
-};
-use std::{
-    fmt,
-    sync::{Arc, Weak},
-};
+use postgres_protocol::message::frontend;
+use std::sync::{Arc, Weak};
 
 #[derive(Debug)]
 enum StatementInner {

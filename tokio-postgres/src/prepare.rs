@@ -55,7 +55,7 @@ pub async fn prepare(
     if let Some(row_description) = row_description {
         let mut it = row_description.fields();
         while let Some(field) = it.next().map_err(Error::parse)? {
-            let type_ = get_type(client, field.type_oid()).await?;
+            let type_ = get_type(field.type_oid());
             let column = Column {
                 name: field.name().to_string(),
                 table_oid: Some(field.table_oid()).filter(|n| *n != 0),
