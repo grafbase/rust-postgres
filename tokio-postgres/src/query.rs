@@ -239,7 +239,13 @@ fn make_statement(
 
         while let Some(field) = it.next().map_err(Error::parse)? {
             let type_ = crate::prepare::get_type(field.type_oid());
-            let column = Column::new(field.name().to_string(), type_, field);
+            let column = Column {
+                name: field.name().to_string(),
+                table_oid: Some(field.table_oid()).filter(|n| *n != 0),
+                column_id: Some(field.column_id()).filter(|n| *n != 0),
+                r#type: type_,
+            };
+
             columns.push(column);
         }
     }
